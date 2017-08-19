@@ -1,0 +1,97 @@
+---
+# Tasks
+
+# Auto-clean packages
+- name: Remove useless packages from the cache
+  apt:
+    autoclean: yes
+
+# Update packages list
+- name: apt-get update
+  command: apt-get update
+
+# Auto-remove packages
+- name: Remove dependencies that are no longer required
+  apt:
+    autoremove: yes
+
+# Install packages
+- name: Install packages 
+  apt:
+    name: "{{ item }}"
+    state: present
+    install_recommends: yes
+  with_items: "{{ install_packages }}"
+  ignore_errors: yes
+
+# Upgrade packages
+- name: Upgrade packages
+  apt:
+    upgrade: dist
+
+# Change TZ to US/Eastern
+- name: Get TZ
+  command: date +%Z
+  register: tz
+
+- name: Change link
+  file:
+    src: /usr/share/zoneinfo/US/Eastern
+    dest: /etc/localtime
+    state: link
+    force: yes
+  when: tz.stdout == "UTC"
+
+- name: Change TZ
+  command: dpkg-reconfigure -f noninteractive tzdata
+  when: tz.stdout == "UTC"
+
+# Fix permissions
+- name: Fix /var/www dir
+  file:
+    path: /var/www
+    owner: www-data
+    group: www-data
+    state: directory
+    recurse: yes
+
+- name: Fix /var/log/nginx dir
+  file:
+    path: /var/log/nginx 
+    owner: www-data
+    group: www-data
+    state: directory
+    recurse: yes
+
+# Change www-date home dir
+- name: Get home directory
+  shell: getent passwd www-data
+  register: wwwhome
+
+- name: Stop service if changing home dir
+  service:
+    name: nginx
+    state: stopped
+  when: '"/var/www/html" in wwwhome'
+
+- name: Change home dir
+  user:
+    name: www-data
+    home: /home/www-data
+  when: '"/var/www/html" in wwwhome'
+
+# Fix permissions
+- name: Fix www-data home dir
+  file:
+    path: /home/www-data
+    owner: www-data
+    group: www-data
+    state: directory
+    recurse: yes
+
+# Start services
+- name: Start web server
+  service:
+    name: nginx
+    state: started
+
